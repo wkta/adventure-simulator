@@ -16,14 +16,15 @@ adventure_simulator/
 │
 ├── server/
 │   ├── py-scripts/
-│   │   ├── adria.py
-│   │   ├── blacksmith.py
-│   │   ├── cain.py
+│   │   ├── npc_adria.py
+│   │   ├── npc_blacksmith.py
+│   │   ├── npc_cain.py
+│   │   ├── npc_robert.py
 │   │   └── ...
 │   ├── js-scripts/
 │   │   └── ...
-│   ├── compile_scripts.cjs
-│   └── server.cjs
+│   ├── server.cjs
+│   └── transpilation.cjs
 │
 ├── README.md
 ├── requirements.txt
@@ -40,11 +41,11 @@ adventure_simulator/
 
 ### Compile py scripts and launch the server
 `npm run compile`
-`npm run start`
+`npm run game-server`
 
 ### Test the client
 Open a different terminal, go back to the root folder and type:
-`python serve_webapp.py`
+`python run_game.py`
 - Firstly select the NPC you wish to talk to and press 'OK'
 - Secondly type a message and press 'Send'
 
