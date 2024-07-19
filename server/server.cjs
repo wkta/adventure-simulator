@@ -17,9 +17,9 @@ const getScripts = (dir) => {
     const files = fs.readdirSync(dir);
 
     files.forEach(file => {
-        if (file.startsWith('npc_') && file.endsWith('.js')) {
-            const npcName = file.replace('npc_', '').replace('.js', '');
-            scripts[npcName] = 'file://' + path.join(dir, file);
+        if ( file.endsWith('.js') || file.endsWith('.cjs')) {
+
+            scripts[file] = 'file://' + path.join(dir, file);
         }
     });
 
@@ -28,11 +28,20 @@ const getScripts = (dir) => {
 
 const scripts = getScripts(scriptsDir);
 
+console.log('all scripts:------------------');
+for (const key in scripts) {
+
+  console.log(key, ':', scripts[key] );
+}
+
 wss.on('connection', (ws, req) => {
-    const npc = req.url.slice(1);
-    const scriptPath = scripts[npc];
+    const gkey = req.url.slice(1);
+	console.log('requested key:',gkey)
+    const scriptPath = scripts[gkey];
+	console.log('script:', scriptPath);
 
     if (!scriptPath) {
+	    console.log(`not a valid script path`);
         ws.close();
         return;
     }
@@ -40,6 +49,7 @@ wss.on('connection', (ws, req) => {
     try {
         // Dynamically import the module
         import(scriptPath).then((module) => {
+		    console.log(`Succesfully loaded script: ${gkey}:`);
             ws.on('message', (data) => {
 			    const message= data.toString();
                 const response = module.process_input(message);
@@ -47,14 +57,14 @@ wss.on('connection', (ws, req) => {
             });
 
             ws.on('close', () => {
-                console.log(`Disconnected from ${npc}`);
+                console.log(`Disconnected from ${gkey}`);
             });
         }).catch((error) => {
-            console.error(`Failed to load script for ${npc}:`, error);
+            console.error(`Failed to load script for ${gkey}:`, error);
             ws.close();
         });
     } catch (error) {
-        console.error(`Failed to run script for ${npc}:`, error);
+        console.error(`Failed to run script for ${gkey}:`, error);
         ws.close();
     }
 });
