@@ -1,10 +1,22 @@
 import socket
 import threading
-from core.events import EngineEvTypes, EvManager
+from core.events import EngineEvTypes, EvManager, EvListener
 
 
 client_socket = None
 receiver_thread = None
+
+
+class NetwPusher(EvListener):
+    def on_netw_send(self, ev):
+        send_data(ev.serial.encode())
+
+    def on_netw_exit(self, ev):
+        stop_network()
+
+    def turn_on(self):
+        super().turn_on()
+        start_client()
 
 
 def receive_updates(clisocket):

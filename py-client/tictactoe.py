@@ -1,9 +1,12 @@
 import sys
+
 import pygame
+
 import glvars
 from GameModel import GameModel, EMPTY_CELL
 from core.events import EvManager, EngineEvTypes, EvListener
-import networking
+from networking import NetwPusher
+
 
 pygame.mixer.pre_init(44100, -16, 2, 1024)
 pygame.init()
@@ -13,56 +16,29 @@ red = (242, 89, 97)
 light_red = (255, 100, 100)
 dark_grey = (85, 85, 85)
 light_grey = (100, 100, 100)
-background_color = (225, 225, 225)
 screen = pygame.display.set_mode((300, 350))
 pygame.display.set_caption('my ttt game')
-crossImg = pygame.image.load('crossImg.png')
-circleImg = pygame.image.load('circleImg.png')
-previewCrossImg = pygame.image.load('prev_crossImg.png')
-previewCircleImg = pygame.image.load('prev_circleImg.png')
-restartImg = pygame.image.load('restart.png')
-restartHoveredImg = pygame.image.load('restart_hovered.png')
 font = pygame.font.Font('freesansbold.ttf', 32)
-X_score = pygame.image.load('X_scoreImg.png')
-O_score = pygame.image.load('O_scoreImg.png')
 buttom1 = None
 buttom2 = None
 logo = None
-previewImg = None
 running = True
-
 mouse = None
 selection = [None, None]
 
 
-def updatePlayer(player):
-    if player == 'X':
-        previewImg = previewCrossImg
-    else:
-        previewImg = previewCircleImg
-    return previewImg
-
-
-def playSound(sound):
-    pygame.mixer.music.load(sound)
-    pygame.mixer.music.play()
-
-
-# ---------------------
-#  mes def
-# ---------------------
 class GameGodObject(EvListener):
     def on_netw_receive(self, ev):
-        global game_model_obj, previewImg
+        global game_model_obj
         serial = ev.serial
         game_model_obj.sync_state(serial)
         print(f'afer Network pyv event, we can update model: {game_model_obj.serialize()}')
-        previewImg = updatePlayer(game_model_obj.curr_player)
 
         if game_model_obj.endgame == 't' and local_pl == 'X':
             game_model_obj.reset_game()
-            m = game_model_obj.serialize()
-            networking.send_data(m.encode())
+            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+        else:
+            self.pev(glvars.gevents.ActivePlayerChanges)
 
     def on_update(self, ev):
         # TODO use events board cange to handle the logic
@@ -76,7 +52,7 @@ class GameGodObject(EvListener):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                networking.stop_network()
+                self.pev(glvars.gevents.ExitNetwork)
 
             elif GameModel.test_full_board(game_model_obj.board):
                 # TODO why have we replaced this?
@@ -90,37 +66,47 @@ class GameGodObject(EvListener):
                         game_model_obj.play_move(row, col)
                         won = GameModel.test_winner(game_model_obj.board, curr_pl)
                         if won:
-                            playSound('resetSound.wav')
+                            self.pev(glvars.gevents.GameEnds, soundname='resetSound.wav')
                             game_model_obj.score[curr_pl] += 1
 
                         if not won:  # if won, we will push infos later, without increm turn
                             game_model_obj.next_turn()
-                            m = game_model_obj.serialize()
-                            networking.send_data(m.encode())
+                            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
 
                 elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
                     game_model_obj.reset_game()
         if won:
             pygame.time.wait(500)
-            m = game_model_obj.serialize()
-            print('»» Sending:', m)
-            networking.send_data(m.encode())
-            print()
+            print('»» Sending msg after won is True')
+            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
 
 
 class GameView(EvListener):
     def __init__(self, mod):
         super().__init__()
         self.ref_model = mod
+        self.preview_img = None
+        self.bgcolor = glvars.BG_COLOR
+        self.images = {
+            'cross': pygame.image.load('crossImg.png'),
+            'circle': pygame.image.load('circleImg.png'),
+            'light_cross': pygame.image.load('prev_crossImg.png'),
+            'light_circle': pygame.image.load('prev_circleImg.png'),
+
+            'restart': pygame.image.load('restart.png'),
+            'restart_hover': pygame.image.load('restart_hovered.png'),
+            'X_score': pygame.image.load('X_scoreImg.png'),
+            'O_score': pygame.image.load('O_scoreImg.png')
+        }
 
     def _draw_board(self, ref_board):
         for row in range(3):
             for col in range(3):
                 pos = (row * 100 + 6, col * 100 + 6)
                 if ref_board[row][col] == 'X':
-                    screen.blit(crossImg, pos)
+                    screen.blit(self.images['cross'], pos)
                 elif ref_board[row][col] == 'O':
-                    screen.blit(circleImg, pos)
+                    screen.blit(self.images['circle'], pos)
         width = 10
         color = dark_grey
         pygame.draw.line(screen, color, (100, 0), (100, 300), width)
@@ -134,56 +120,78 @@ class GameView(EvListener):
     def _draw_bottom_menu(self, mouse):
         pygame.draw.rect(screen, dark_grey, (0, 300, 300, 50))
         pygame.draw.rect(screen, light_grey, (5, 305, 290, 40))
-        screen.blit(restartImg, (250, 310))
+        screen.blit(self.images['restart'], (250, 310))
         if 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
-            screen.blit(restartHoveredImg, (248, 308))
-        screen.blit(X_score, (40, 310))
-        screen.blit(O_score, (190, 310))
-        scoreboard = font.render(': %d x %d :' % (self.ref_model.score['X'], self.ref_model.score['O']), True, background_color,
+            screen.blit(self.images['restart_hover'], (248, 308))
+        screen.blit(self.images['X_score'], (40, 310))
+        screen.blit(self.images['O_score'], (190, 310))
+        scoreboard = font.render(': %d x %d :' % (self.ref_model.score['X'], self.ref_model.score['O']), True, self.bgcolor,
                                  light_grey)
         screen.blit(scoreboard, (72, 310))
 
-    def _draw_move_preview(self, row, col, previewImg):
+    def _draw_move_preview(self, row, col):
         if self.ref_model.board[row][col] == EMPTY_CELL:
-            screen.blit(previewImg, (row * 100 + 6, col * 100 + 6))
+            screen.blit(self.preview_img, (row * 100 + 6, col * 100 + 6))
+
+    # --------------
+    #  event handling
+    # --------------
+    def on_active_player_changes(self, ev):
+        if self.ref_model.curr_player == 'X':
+            self.preview_img = self.images['light_cross']
+        else:
+            self.preview_img = self.images['light_circle']
 
     def on_paint(self, ev):
         global mouse, selection
-        screen.fill(background_color)
+        screen.fill(self.bgcolor)
         self._draw_board(self.ref_model.board)
         self._draw_bottom_menu(mouse)
         if selection[0] < 3 and selection[1] < 3:
-            self._draw_move_preview(selection[0], selection[1], previewImg)
+            self._draw_move_preview(selection[0], selection[1])
 
 
-def init_game(mode_de_jeu, refmodel):
-    global previewImg
+class SoundCtrl(EvListener):
+    def __init__(self):
+        super().__init__()
+        # self.sounds = {
+        # }
 
-    if mode_de_jeu != 0:  # réseau
-        raise NotImplementedError
-    networking.start_client()
-    pygame.mouse.set_pos(150, 175)
-    previewImg = updatePlayer(refmodel.curr_player)
+    def on_game_ends(self, ev):
+        pygame.mixer.music.load(ev.soundname)
+        pygame.mixer.music.play()
 
 
 # ----------------------
 #  longue init. then game loop
 # ----------------------
-game_model_obj = GameModel()
+if sys.argv[1] == 'player1':
+    local_pl, remote_pl = 'X', 'O'
+else:
+    local_pl, remote_pl = 'O', 'X'
 
 ev_mger = EvManager.instance()
 ev_mger.setup(glvars.gevents)
+game_model_obj = GameModel()
+
+mode_de_jeu = 0  # vs remote player
+pygame.mouse.set_pos(150, 175)
+ev_mger.post(glvars.gevents.ActivePlayerChanges)
+#if mode_de_jeu == 0:
+netw_pusher = NetwPusher()
+netw_pusher.turn_on()
+#else:
+#    pass
+
+sfx = SoundCtrl()
+sfx.turn_on()
+
 gamectrl = GameGodObject()
 gamectrl.turn_on()
 gameview = GameView(game_model_obj)
 gameview.turn_on()
 
-if sys.argv[1] == 'player1':
-    local_pl, remote_pl = 'X', 'O'
-else:
-    local_pl, remote_pl = 'O', 'X'
-init_game(0, game_model_obj)
-
+# game loop
 while running:
     ev_mger.post(EngineEvTypes.Update)
     ev_mger.post(EngineEvTypes.Paint)
