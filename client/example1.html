@@ -1,1 +1,32 @@
-ola
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adventure Simulator</title>
+</head>
+
+<body>
+    <h1>Adventure Simulator</h1>
+    <form id="npc-form">
+        <label>
+            <input type="radio" name="npc" value="artificial.js" checked> Play TTT
+        </label>
+        <label>
+            <input type="radio" name="npc" value="npc_cain.js"> Cain
+        </label>
+        <label>
+            <input type="radio" name="npc" value="npc_robert.js"> Robert
+        </label>
+        <button type="button" onclick="connectToNPC()">OK</button>
+    </form>
+    <div id="console">
+        <input type="text" id="user-input" placeholder="Type a message">
+        <button type="button" onclick="sendMessage()">Send</button>
+    </div>
+    <pre id="output"></pre>
+    <script src="script.js"></script>
+
+</body>
+</html>
+
