@@ -1,8 +1,15 @@
-import sys
-from GameModel import GameModel, EMPTY_CELL
-import pygame
 import socket
+import sys
 import threading
+
+import pygame
+
+from GameModel import GameModel, EMPTY_CELL
+from core.events import game_events_enum, EvManager, EngineEvTypes, EvListener, Emitter
+
+
+ev_mger = EvManager.instance()
+
 
 pygame.mixer.pre_init(44100, -16, 2, 1024)
 pygame.init()
@@ -27,92 +34,11 @@ O_score = pygame.image.load('O_scoreImg.png')
 buttom1 = None
 buttom2 = None
 logo = None
-
-model = GameModel()
 previewImg = None
-def game(mode_de_jeu, local_player_sym):
-    global model, previewImg
-    if mode_de_jeu != 0:
-        raise NotImplementedError
-    pygame.mouse.set_pos(150, 175)
-    previewImg = updatePlayer(model.curr_player)
-    running = True
-    while running:
-        won = None
-        mouse = pygame.mouse.get_pos()
-        row, col = int(mouse[0] / 100), int(mouse[1] / 100)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                stop_network()
+running = True
 
-            elif model.test_full_board():
-                model.reset_board()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if row < 3 and col < 3 and model.board[row][col] == EMPTY_CELL:
-                    if model.curr_player == local_player_sym:
-                        prevplayer = model.curr_player
-                        model.play_move(row, col)
-
-                        won = verifyWinner(prevplayer)
-                        if not won:  # if won, we'll push infos later
-                            m = model.serialize()
-                            client_socket.sendall(m.encode())
-
-                elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
-                    model.reset_game()
-        screen.fill(background_color)
-        drawBoard()
-        drawBottomMenu(mouse)
-        if won:
-            pygame.time.wait(500)
-            m = model.serialize()
-            print('»» Sending:', m)
-            client_socket.sendall(m.encode())
-            print()
-
-        elif row < 3 and col < 3:
-            visualizeMove(row, col, previewImg)
-        pygame.display.update()
-
-
-def drawBoard():
-    global model
-    for row in range(3):
-        for col in range(3):
-            pos = (row * 100 + 6, col * 100 + 6)
-            if model.board[row][col] == 'X':
-                screen.blit(crossImg, pos)
-            elif model.board[row][col] == 'O':
-                screen.blit(circleImg, pos)
-    width = 10
-    color = dark_grey
-    pygame.draw.line(screen, color, (100, 0), (100, 300), width)
-    pygame.draw.line(screen, color, (200, 0), (200, 300), width)
-    pygame.draw.line(screen, color, (0, 100), (300, 100), width)
-    pygame.draw.line(screen, color, (0, 200), (300, 200), width)
-    pygame.draw.rect(screen, color, (0, 0, 5, 300))
-    pygame.draw.rect(screen, color, (0, 0, 300, 5))
-    pygame.draw.rect(screen, color, (295, 0, 5, 300))
-
-
-def drawBottomMenu(mouse):
-    global model
-    pygame.draw.rect(screen, dark_grey, (0, 300, 300, 50))
-    pygame.draw.rect(screen, light_grey, (5, 305, 290, 40))
-    screen.blit(restartImg, (250, 310))
-    if 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
-        screen.blit(restartHoveredImg, (248, 308))
-    screen.blit(X_score, (40, 310))
-    screen.blit(O_score, (190, 310))
-    scoreboard = font.render(': %d x %d :' % (model.score['X'], model.score['O']), True, background_color, light_grey)
-    screen.blit(scoreboard, (72, 310))
-
-
-def visualizeMove(row, col, previewImg):
-    global model
-    if model.board[row][col] == EMPTY_CELL:
-        screen.blit(previewImg, (row * 100 + 6, col * 100 + 6))
+mouse = None
+selection = [None, None]
 
 
 def updatePlayer(player):
@@ -123,26 +49,11 @@ def updatePlayer(player):
     return previewImg
 
 
-def isWinner(player):
-    global model
-    board = model.board
-    return ((board[0][0] == player and board[0][1] == player and board[0][2] == player) or
-            (board[1][0] == player and board[1][1] == player and board[1][2] == player) or
-            (board[2][0] == player and board[2][1] == player and board[2][2] == player) or
-            (board[0][0] == player and board[1][0] == player and board[2][0] == player) or
-            (board[0][1] == player and board[1][1] == player and board[2][1] == player) or
-            (board[0][2] == player and board[1][2] == player and board[2][2] == player) or
-            (board[0][0] == player and board[1][1] == player and board[2][2] == player) or
-            (board[0][2] == player and board[1][1] == player and board[2][0] == player))
-
-
-def verifyWinner(player):
-    global model
-    if isWinner(player):
+def verifyWinner(model, player):
+    if GameModel.test_winner(model.board, player):
         print('final board:', model.serialize())
         playSound('resetSound.wav')
         model.score[player] += 1
-        model.endgame = 't'
         return True
 
 
@@ -151,33 +62,27 @@ def playSound(sound):
     pygame.mixer.music.play()
 
 
-def receive_updates(client_socket):
-    global model, previewImg
-    while True:
-        data = client_socket.recv(1024)
+client_socket = None
+receiver_thread = None
+
+
+def receive_updates(clisocket):
+    global game_model_obj, ev_mger, running
+
+    while running:
+        data = clisocket.recv(1024)
         if not data:
             break
         serial = data.decode()
         print(f'Received shared variable update: {serial}')
-        model = GameModel.deserialize(serial)
 
-        previewImg = updatePlayer(model.curr_player)
+        # -------------
+        #  replace local game model
+        # -------------
+        game_model_obj.sync_state(serial)
+        print(f'Network has updated model: {game_model_obj.serialize()}')
+        ev_mger.post(EngineEvTypes.NetwReceive)
 
-        print(f'Updated model: {model.serialize()}')
-        if model.endgame == 't' and local_pl == 'X':
-            model.reset_game()
-            m = model.serialize()
-            client_socket.sendall(m.encode())
-
-
-if sys.argv[1] == 'player1':
-    local_pl, remote_pl = 'X', 'O'
-else:
-    local_pl, remote_pl = 'O', 'X'
-
-
-client_socket = None
-receiver_thread = None
 
 def start_client():
     global client_socket, receiver_thread
@@ -195,6 +100,137 @@ def stop_network():
         client_socket.close()
 
 
-start_client()
+# ---------------------
+#  mes def
+# ---------------------
+class GameGodObject(EvListener):
+    def on_netw_receive(self, ev):
+        global previewImg, game_model_obj, client_socket
+        previewImg = updatePlayer(game_model_obj.curr_player)
 
-game(0, local_pl)
+        if game_model_obj.endgame == 't' and local_pl == 'X':
+            game_model_obj.reset_game()
+            m = game_model_obj.serialize()
+            client_socket.sendall(m.encode())
+
+    def on_update(self, ev):
+        # TODO use events board cange to handle the logic
+        global running, mouse, selection
+        global game_model_obj
+        won = None
+        mouse = pygame.mouse.get_pos()
+        row, col = int(mouse[0] / 100), int(mouse[1] / 100)
+        selection[0] = row
+        selection[1] = col
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                stop_network()
+
+            elif GameModel.test_full_board(game_model_obj.board):
+                # TODO why have we replaced this?
+                # model.reset_board()
+                game_model_obj.reset_game()
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if row < 3 and col < 3 and game_model_obj.board[row][col] == EMPTY_CELL:
+                    if game_model_obj.curr_player == local_pl:
+                        game_model_obj.play_move(row, col)
+                        won = verifyWinner(game_model_obj, game_model_obj.curr_player)
+                        if not won:  # if won, we will push infos later, without increm turn
+                            game_model_obj.next_turn()
+                            m = game_model_obj.serialize()
+                            client_socket.sendall(m.encode())
+
+                elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
+                    game_model_obj.reset_game()
+        if won:
+            pygame.time.wait(500)
+            m = game_model_obj.serialize()
+            print('»» Sending:', m)
+            client_socket.sendall(m.encode())
+            print()
+
+
+class GameView(EvListener):
+    def __init__(self, mod):
+        super().__init__()
+        self.ref_model = mod
+
+    def _draw_board(self, ref_board):
+        for row in range(3):
+            for col in range(3):
+                pos = (row * 100 + 6, col * 100 + 6)
+                if ref_board[row][col] == 'X':
+                    screen.blit(crossImg, pos)
+                elif ref_board[row][col] == 'O':
+                    screen.blit(circleImg, pos)
+        width = 10
+        color = dark_grey
+        pygame.draw.line(screen, color, (100, 0), (100, 300), width)
+        pygame.draw.line(screen, color, (200, 0), (200, 300), width)
+        pygame.draw.line(screen, color, (0, 100), (300, 100), width)
+        pygame.draw.line(screen, color, (0, 200), (300, 200), width)
+        pygame.draw.rect(screen, color, (0, 0, 5, 300))
+        pygame.draw.rect(screen, color, (0, 0, 300, 5))
+        pygame.draw.rect(screen, color, (295, 0, 5, 300))
+
+    def _draw_bottom_menu(self, mouse):
+        pygame.draw.rect(screen, dark_grey, (0, 300, 300, 50))
+        pygame.draw.rect(screen, light_grey, (5, 305, 290, 40))
+        screen.blit(restartImg, (250, 310))
+        if 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
+            screen.blit(restartHoveredImg, (248, 308))
+        screen.blit(X_score, (40, 310))
+        screen.blit(O_score, (190, 310))
+        scoreboard = font.render(': %d x %d :' % (self.ref_model.score['X'], self.ref_model.score['O']), True, background_color,
+                                 light_grey)
+        screen.blit(scoreboard, (72, 310))
+
+    def _draw_move_preview(self, row, col, previewImg):
+        if self.ref_model.board[row][col] == EMPTY_CELL:
+            screen.blit(previewImg, (row * 100 + 6, col * 100 + 6))
+
+    def on_paint(self, ev):
+        global mouse, selection
+        screen.fill(background_color)
+        self._draw_board(self.ref_model.board)
+        self._draw_bottom_menu(mouse)
+        if selection[0] < 3 and selection[1] < 3:
+            self._draw_move_preview(selection[0], selection[1], previewImg)
+
+
+def init_game(mode_de_jeu, refmodel):
+    global previewImg
+
+    if mode_de_jeu != 0:  # réseau
+        raise NotImplementedError
+
+    start_client()
+
+    pygame.mouse.set_pos(150, 175)
+    previewImg = updatePlayer(refmodel.curr_player)
+
+
+# ----------------------
+#  longue init. then game loop
+# ----------------------
+game_model_obj = GameModel()
+
+ev_mger.setup()
+gamectrl = GameGodObject()
+gamectrl.turn_on()
+gameview = GameView(game_model_obj)
+gameview.turn_on()
+
+if sys.argv[1] == 'player1':
+    local_pl, remote_pl = 'X', 'O'
+else:
+    local_pl, remote_pl = 'O', 'X'
+init_game(0, game_model_obj)
+
+while running:
+    ev_mger.post(EngineEvTypes.Update)
+    ev_mger.post(EngineEvTypes.Paint)
+    ev_mger.update()
+    pygame.display.update()
