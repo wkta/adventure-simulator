@@ -7,6 +7,7 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
 
+const clients = [];
 
 const wss = new WebSocket.Server({ port: 8080 });
 const scriptsDir = path.join(__dirname, 'js-scripts');
@@ -49,16 +50,26 @@ wss.on('connection', (ws, req) => {
     try {
         // Dynamically import the module
         import(scriptPath).then((module) => {
-		    console.log(`Succesfully loaded script: ${gkey}:`);
+		    console.log(`connect+script loading OK! Loaded script: ${gkey}:`);
+			clients.push(ws);
             ws.on('message', (data) => {
 			    const message= data.toString();
-                const response = module.process_input(message);
-                ws.send(response);
-            });
+				
+				// play vs A.I.
+                //const response = module.process_input(message);
+                //ws.send(response);
+				
+				clients.forEach(client => {
+					if (client.readyState === WebSocket.OPEN) {
+						client.send(message);
+					}
+				});
+			});
 
             ws.on('close', () => {
                 console.log(`Disconnected from ${gkey}`);
             });
+
         }).catch((error) => {
             console.error(`Failed to load script for ${gkey}:`, error);
             ws.close();

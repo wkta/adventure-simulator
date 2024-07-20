@@ -11,7 +11,7 @@ class NetwPusher(EvListener):
     def on_netw_send(self, ev):
         send_data(ev.serial.encode())
 
-    def on_netw_exit(self, ev):
+    def on_exit_network(self, ev):
         stop_network()
 
     def turn_on(self):
