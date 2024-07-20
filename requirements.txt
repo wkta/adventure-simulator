@@ -1,1 +1,2 @@
 transcrypt
+websocket-client
