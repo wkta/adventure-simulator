@@ -1,15 +1,9 @@
-import socket
 import sys
-import threading
-
 import pygame
-
+import glvars
 from GameModel import GameModel, EMPTY_CELL
-from core.events import game_events_enum, EvManager, EngineEvTypes, EvListener, Emitter
-
-
-ev_mger = EvManager.instance()
-
+from core.events import EvManager, EngineEvTypes, EvListener
+import networking
 
 pygame.mixer.pre_init(44100, -16, 2, 1024)
 pygame.init()
@@ -49,55 +43,9 @@ def updatePlayer(player):
     return previewImg
 
 
-def verifyWinner(model, player):
-    if GameModel.test_winner(model.board, player):
-        print('final board:', model.serialize())
-        playSound('resetSound.wav')
-        model.score[player] += 1
-        return True
-
-
 def playSound(sound):
     pygame.mixer.music.load(sound)
     pygame.mixer.music.play()
-
-
-client_socket = None
-receiver_thread = None
-
-
-def receive_updates(clisocket):
-    global game_model_obj, ev_mger, running
-
-    while running:
-        data = clisocket.recv(1024)
-        if not data:
-            break
-        serial = data.decode()
-        print(f'Received shared variable update: {serial}')
-
-        # -------------
-        #  replace local game model
-        # -------------
-        game_model_obj.sync_state(serial)
-        print(f'Network has updated model: {game_model_obj.serialize()}')
-        ev_mger.post(EngineEvTypes.NetwReceive)
-
-
-def start_client():
-    global client_socket, receiver_thread
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect(('localhost', 12345))
-    receiver_thread = threading.Thread(target=receive_updates, args=(client_socket,))
-    receiver_thread.start()
-
-
-def stop_network():
-    global receiver_thread, client_socket
-    if receiver_thread:
-        receiver_thread.join()
-    if client_socket:
-        client_socket.close()
 
 
 # ---------------------
@@ -105,13 +53,16 @@ def stop_network():
 # ---------------------
 class GameGodObject(EvListener):
     def on_netw_receive(self, ev):
-        global previewImg, game_model_obj, client_socket
+        global game_model_obj, previewImg
+        serial = ev.serial
+        game_model_obj.sync_state(serial)
+        print(f'afer Network pyv event, we can update model: {game_model_obj.serialize()}')
         previewImg = updatePlayer(game_model_obj.curr_player)
 
         if game_model_obj.endgame == 't' and local_pl == 'X':
             game_model_obj.reset_game()
             m = game_model_obj.serialize()
-            client_socket.sendall(m.encode())
+            networking.send_data(m.encode())
 
     def on_update(self, ev):
         # TODO use events board cange to handle the logic
@@ -125,7 +76,7 @@ class GameGodObject(EvListener):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                stop_network()
+                networking.stop_network()
 
             elif GameModel.test_full_board(game_model_obj.board):
                 # TODO why have we replaced this?
@@ -134,13 +85,18 @@ class GameGodObject(EvListener):
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if row < 3 and col < 3 and game_model_obj.board[row][col] == EMPTY_CELL:
-                    if game_model_obj.curr_player == local_pl:
+                    curr_pl = game_model_obj.curr_player
+                    if curr_pl == local_pl:
                         game_model_obj.play_move(row, col)
-                        won = verifyWinner(game_model_obj, game_model_obj.curr_player)
+                        won = GameModel.test_winner(game_model_obj.board, curr_pl)
+                        if won:
+                            playSound('resetSound.wav')
+                            game_model_obj.score[curr_pl] += 1
+
                         if not won:  # if won, we will push infos later, without increm turn
                             game_model_obj.next_turn()
                             m = game_model_obj.serialize()
-                            client_socket.sendall(m.encode())
+                            networking.send_data(m.encode())
 
                 elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
                     game_model_obj.reset_game()
@@ -148,7 +104,7 @@ class GameGodObject(EvListener):
             pygame.time.wait(500)
             m = game_model_obj.serialize()
             print('»» Sending:', m)
-            client_socket.sendall(m.encode())
+            networking.send_data(m.encode())
             print()
 
 
@@ -205,9 +161,7 @@ def init_game(mode_de_jeu, refmodel):
 
     if mode_de_jeu != 0:  # réseau
         raise NotImplementedError
-
-    start_client()
-
+    networking.start_client()
     pygame.mouse.set_pos(150, 175)
     previewImg = updatePlayer(refmodel.curr_player)
 
@@ -217,7 +171,8 @@ def init_game(mode_de_jeu, refmodel):
 # ----------------------
 game_model_obj = GameModel()
 
-ev_mger.setup()
+ev_mger = EvManager.instance()
+ev_mger.setup(glvars.gevents)
 gamectrl = GameGodObject()
 gamectrl.turn_on()
 gameview = GameView(game_model_obj)
