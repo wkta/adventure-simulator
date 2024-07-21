@@ -1,30 +1,16 @@
-"""
-code by moonbak
-contact - thomas.iw@kata.games
-
-That file contains everything that's needed to implement
-kengi.event... That is:
-
-  - to_camelcase, and to_snakecase
-  - (classes) CircularBuffer, EnumSeed, PseudoEnum, Singleton
-  - EngineEvTypes (the enum)
-
-"""
 import re
 from collections import deque
 
 
-# DECLARE CONSTANTS
-# in regard to display options, within KENGI there are only 4 canonical modes for display:
-#  three that are displayed in a 960 x 720 -pixel canvas
-# 'super_retro' (upscaling x3), 'old_school', (upscaling x2), 'hd' (no upscaling)
-# one that is displayed in a user-defined size canvas and also uses a pixel-to-pixel mapping just like the 'hd' option
+__all__ = [
+    'to_snakecase',
+    'to_camelcase',
 
-STD_SCR_SIZE = (960, 720)
-
-# USEREVENT = 32850  # pygame userevent 2.1.1
-# FIRST_ENGIN_TYPE = USEREVENT + 1
-# FIRST_CUSTO_TYPE = FIRST_ENGIN_TYPE + 20  # therefore, 20 is the maximal amount of engine events
+    'CircularBuffer',
+    'KengiEv',
+    'PseudoEnum',
+    'Singleton'
+]
 
 
 def to_camelcase(str_with_underscore):
@@ -179,50 +165,6 @@ class Singleton:
 
     def __instancecheck__(self, inst):
         return isinstance(inst, self._decorated)
-
-
-# --- declare all engine events ---
-_TRADITIONAL_1ST_ETYPE = 32866+1  # 32866 == pygame.USEREVENT
-
-EngineEvTypes = PseudoEnum((
-    'Quit',
-    'Activation',
-    'FocusGained',
-    'FocusLost',
-    'BasicTextinput',
-
-    'Keydown',
-    'Keyup',
-    'Mousemotion',
-    'Mousedown',
-    'Mouseup',
-
-    'Stickmotion',  # has event.axis; event.value
-    'GamepadDir',
-    'Gamepaddown',
-    'Gamepadup',
-
-    'Update',
-    'Paint',
-
-    'Gamestart',
-    'Gameover',
-    # (used in RPGs like niobepolis, conv<- conversation)
-    'ConvStart',  # contains convo_obj, portrait
-    'ConvFinish',
-    'ConvStep',  # contains value
-
-    'StateChange',  # contains code state_ident
-    'StatePush',  # contains code state_ident
-    'StatePop',
-
-    'RpcReceive',  # two-level reception (->tunelling if we use the json-rpc). Has num and raw_rpc_resp attributes
-    'RpcError',  # contains: code, msg
-
-    'NetwSend',  # [num] un N°identification & [msg] un string (Async network comms)
-    'NetwReceive'  # [num] un N°identification & [msg] un string (Async network comms)
-), _TRADITIONAL_1ST_ETYPE)
-
 
 class KengiEv:
     def __init__(self, etype, **entries):
