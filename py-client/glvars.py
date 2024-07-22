@@ -8,5 +8,7 @@ gevents = game_events_enum((
     'GameEnds',  # contains : soundname
 
     'BoardChanges',  # contains a "board" attribute
-    'ActivePlayerChanges'  # contains "curr_player"
+    'ActivePlayerChanges',  # contains "curr_player"
+
+    'CrossSyncState'
 ))

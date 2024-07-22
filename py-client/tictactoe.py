@@ -25,6 +25,8 @@ running = True
 mouse = None
 selection = [None, None]
 
+SPE_EVENT_NAME = 'cross_push_changes'
+
 
 # --------------
 #  load networking module
@@ -44,22 +46,39 @@ else:
 
 
 class GameGodObject(EvListener):
+    def on_cross_sync_state(self, ev):
+        print('->>>> cross_sync_state reception Ok!')
+        # print(dir(ev))
+        print(ev.point)
+
     def on_netw_receive(self, ev):
         global game_model_obj
         serial = ev.serial
+
+        if serial[:6] == '{"type':
+            print('client ignore message from netw! careful here')
+            return  # ignore updates time
+
+        if serial[:6] == 'cross_':
+            a, b = serial.split('#')
+            assert(a == 'cross_sync_state')
+            pt3d = json.loads(b)
+            self.pev(glvars.gevents.CrossSyncState, point=pt3d)
+            return
+
         game_model_obj.sync_state(serial)
         print(f'afer Network pyv event, we can update model: {game_model_obj.serialize()}')
 
         if game_model_obj.endgame == 't' and local_pl == 'X':
             game_model_obj.reset_game()
-            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+            self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
         else:
             self.pev(glvars.gevents.ActivePlayerChanges)
 
     def on_game_ends(self, ev):
         pygame.time.wait(500)
         print('»» Sending msg after won is True')
-        self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+        self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
 
     def on_update(self, ev):
         # TODO use events board cange to handle the logic
@@ -92,7 +111,7 @@ class GameGodObject(EvListener):
                                 game_model_obj.reset_game()
                                 return
                             game_model_obj.next_turn()
-                            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+                            self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
 
                 elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
                     game_model_obj.reset_game()
