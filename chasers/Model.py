@@ -74,7 +74,11 @@ class Model:
         self.world[i][j] = sym
 
     def get_possible_mvt(self, player):
-        opponent = self.enemy(player)
+        if player in ('p1', 'p2'):
+            opponents = (self.enemy(player),)
+        else:
+            opponents = ('p1', 'p2')  # ai is scared by players
+
         omega = [tuple(self.positions[player]) for _ in range(4)]
         for k_rank, offset in enumerate([(-1, 0), (1, 0), (0, -1), (0, 1)]):
             cval = self.positions[player]
@@ -86,8 +90,9 @@ class Model:
                 bad_loc.add(elt)
             elif not (0 <= elt[1] < 4):
                 bad_loc.add(elt)
-            elif elt == self.positions[opponent]:
+            elif elt in map(self.positions.__getitem__, opponents):
                 bad_loc.add(elt)
+
         for y in bad_loc:
             omega.remove(y)
         return omega
