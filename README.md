@@ -43,6 +43,8 @@ adventure_simulator/
 `npm run compile`
 `npm run game-server`
 
+(for unstable experiments, you can go `npm run evo-server`
+
 ### Test the client
 Open a different terminal, go back to the root folder and type:
 `python run_game.py`
