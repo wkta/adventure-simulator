@@ -10,6 +10,14 @@ class Model:
             r_loc = (random.randint(0, 5), random.randint(0, 3))
         return r_loc
 
+    @staticmethod
+    def enemy(x):
+        if x == 'p1':
+            return 'p2'
+        if x == 'p2':
+            return 'p1'
+        raise ValueError('not recognized x argument: '+str(x))
+
     def __init__(self):
         self.winner = 0  # when this isnt zero, therefore game is over
         self.taken = set()

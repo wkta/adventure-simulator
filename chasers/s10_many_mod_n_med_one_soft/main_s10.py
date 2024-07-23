@@ -14,6 +14,7 @@ from NetworkLayer import NetworkLayer
 from ServerComponent import ServerComponent
 from ext_mediators import ServerMediator
 
+
 # Create network layer
 network_layer = NetworkLayer()
 # mediators are registered auto within the network layer to SIMULATE a bidirectional connection
@@ -43,7 +44,6 @@ def massiv_debug():
 
 tmp = list(clients)
 tmp.append(server)
-
 massiv_debug()
 
 # ensure manually that models are sync, right at the start
@@ -61,7 +61,6 @@ massiv_debug()
 ref_active_client = clients[active_client_rank]
 
 while ref_active_client._model.winner == 0:
-
     # @@@ would work if logic handled client side:
 
     # wcell = ref_active_client.input_play()
@@ -85,64 +84,3 @@ while ref_active_client._model.winner == 0:
 
     active_client_rank = (active_client_rank + 1) % 2  # switch active player
     ref_active_client = clients[active_client_rank]
-
-# server.process_move((1, 0, 'O'))
-# server.flag_winner()
-# print('---')
-#
-# client_a.play_move(2, 2, 'X')
-# client_b.kill_player()
-
-# ------- test model changes pushing mechanism ------
-# Create a Point3D instance and push changes
-# point_mediator = client_a_mediator
-# point = Point3D(1, 2, 3, point_mediator)
-# client_a.point = point
-
-# Manually update mediators to process event queues
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-#
-# print('...')
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-#
-# print('...')
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-
-# print('>>»')
-# print(point.components)
-# print('server-side: ', server.three_d_point.components)
-# print()
-#
-# print('post point3d components is now set client side...')
-# point.components = (87, 1.0, -3.0)
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-#
-# print('>>»')
-# print(point.components)
-# print('server-side: ', server.three_d_point.components)
-
-#
-# print(' Je FAIS EVOLVE vec manuellement')
-# server.evolve_vector()
-# print('...')
-#
-# print('...')
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-# print('...')
-# print(client_a_mediator.update())
-# print(client_b_mediator.update())
-# print(server_mediator.update())
-
-# print('>>»')
-# print(point.components)
-# print('server-side: ', server.three_d_point.components)
