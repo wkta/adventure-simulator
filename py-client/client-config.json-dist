@@ -1,0 +1,6 @@
+{
+  "hint": "could SELECT localhost:8080/artificial.js OR localhost:1234, resp. transport_type=ws OR socket",
+
+  "host":"localhost:8080",
+  "transport_type":"ws"
+}

@@ -1,8 +1,8 @@
 import re
 import time
 import weakref
-from .defs import EngineEvTypes, KengiEv, PseudoEnum
-from .defs import to_camelcase, to_snakecase, CircularBuffer, Singleton
+from .fclasses import *
+from .constants import EngineEvTypes
 
 
 _FIRST_LISTENER_ID = 72931

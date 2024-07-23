@@ -1,11 +1,10 @@
 import sys
-
 import pygame
-
 import glvars
 from GameModel import GameModel, EMPTY_CELL
 from core.events import EvManager, EngineEvTypes, EvListener
-from networking import NetwPusher
+import importlib
+import json
 
 
 pygame.mixer.pre_init(44100, -16, 2, 1024)
@@ -26,25 +25,66 @@ running = True
 mouse = None
 selection = [None, None]
 
+SPE_EVENT_NAME = 'cross_push_changes'
+
+
+# --------------
+#  load networking module
+# --------------
+with open('client-config.json') as fptr:
+    jobj = json.load(fptr)
+    target_host, transport = jobj['host'], jobj['transport_type']  # you can select either 'ws' or 'socket' for 2nd
+
+# Dynamically load the appropriate module
+networking_module = None
+if transport == 'socket':
+    networking_module = importlib.import_module('networking')
+elif transport == 'ws':
+    networking_module = importlib.import_module('ws_networking')
+else:
+    raise ValueError("Unsupported transport type")
+
 
 class GameGodObject(EvListener):
+    def on_cross_sync_state(self, ev):
+        print('->>>> cross_sync_state reception Ok!')
+        # print(dir(ev))
+        print(ev.point)
+
     def on_netw_receive(self, ev):
         global game_model_obj
         serial = ev.serial
+
+        if serial[:6] == '{"type':
+            print('client ignore message from netw! careful here')
+            return  # ignore updates time
+
+        if serial[:6] == 'cross_':
+            a, b = serial.split('#')
+            assert(a == 'cross_sync_state')
+            pt3d = json.loads(b)
+            self.pev(glvars.gevents.CrossSyncState, point=pt3d)
+            return
+
         game_model_obj.sync_state(serial)
         print(f'afer Network pyv event, we can update model: {game_model_obj.serialize()}')
 
         if game_model_obj.endgame == 't' and local_pl == 'X':
             game_model_obj.reset_game()
-            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+            self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
         else:
             self.pev(glvars.gevents.ActivePlayerChanges)
+
+    def on_game_ends(self, ev):
+        pygame.time.wait(500)
+        print('»» Sending msg after won is True')
+        self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
 
     def on_update(self, ev):
         # TODO use events board cange to handle the logic
         global running, mouse, selection
         global game_model_obj
-        won = None
+
         mouse = pygame.mouse.get_pos()
         row, col = int(mouse[0] / 100), int(mouse[1] / 100)
         selection[0] = row
@@ -54,31 +94,27 @@ class GameGodObject(EvListener):
                 running = False
                 self.pev(glvars.gevents.ExitNetwork)
 
-            elif GameModel.test_full_board(game_model_obj.board):
-                # TODO why have we replaced this?
-                # model.reset_board()
-                game_model_obj.reset_game()
-
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if row < 3 and col < 3 and game_model_obj.board[row][col] == EMPTY_CELL:
                     curr_pl = game_model_obj.curr_player
                     if curr_pl == local_pl:
                         game_model_obj.play_move(row, col)
+
                         won = GameModel.test_winner(game_model_obj.board, curr_pl)
                         if won:
                             self.pev(glvars.gevents.GameEnds, soundname='resetSound.wav')
                             game_model_obj.score[curr_pl] += 1
-
-                        if not won:  # if won, we will push infos later, without increm turn
+                        else:
+                            if GameModel.test_full_board(game_model_obj.board):
+                                # TODO why have we replaced this?
+                                # model.reset_board()
+                                game_model_obj.reset_game()
+                                return
                             game_model_obj.next_turn()
-                            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
+                            self.pev(EngineEvTypes.NetwSend, evt=SPE_EVENT_NAME, serial=game_model_obj.serialize())
 
                 elif 250 < mouse[0] < 282 and 310 < mouse[1] < 342:
                     game_model_obj.reset_game()
-        if won:
-            pygame.time.wait(500)
-            print('»» Sending msg after won is True')
-            self.pev(EngineEvTypes.NetwSend, serial=game_model_obj.serialize())
 
 
 class GameView(EvListener):
@@ -178,7 +214,8 @@ mode_de_jeu = 0  # vs remote player
 pygame.mouse.set_pos(150, 175)
 ev_mger.post(glvars.gevents.ActivePlayerChanges)
 #if mode_de_jeu == 0:
-netw_pusher = NetwPusher()
+
+netw_pusher = networking_module.NetwPusher()
 netw_pusher.turn_on()
 #else:
 #    pass

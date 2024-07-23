@@ -1,7 +1,3 @@
-// Enable Babel transpilation for runtime
-//require('@babel/register')({
-//    presets: ['@babel/preset-env']
-//});
 
 const WebSocket = require('ws');
 const path = require('path');
