@@ -1,4 +1,5 @@
 from NetwReadyModel import NetwReadyModel
+import json
 
 
 class ServerComponent:
@@ -22,7 +23,9 @@ class ServerComponent:
 
     def on_cross_move_player(self, event):
         print('ds move player serv side')
-        lp, i_str, j_str = event.split('#')
+        print(event)
+
+        lp, i_str, j_str = json.loads(event)
         i = int(i_str)
         j = int(j_str)
         print('server: target recog:', lp, i, j)

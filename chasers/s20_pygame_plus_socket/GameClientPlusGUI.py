@@ -1,5 +1,5 @@
 from NetwReadyModel import NetwReadyModel
-from ext_mediators import ClientMediator
+from ClientMediator import ClientMediator
 import glvars
 import pygame
 
@@ -11,6 +11,8 @@ P2_COLOR = 'red'
 class GameClientPlusGUI:
     def __init__(self, netlayer, player_sym):
         self.mediator = ClientMediator(player_sym, netlayer)
+        print(netlayer._mediators)
+
         self._model = NetwReadyModel(self.mediator, player_sym)
 
         self.mediator.register('cross_sync_state', self.on_cross_sync_state)

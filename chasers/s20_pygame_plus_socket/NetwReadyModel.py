@@ -23,11 +23,14 @@ class NetwReadyModel(ModelWithEvents):
 
     # SPECIFIC ++
     def serialize(self):
-        return json.dumps(self.world)+f"#{self.score['p1']}#{self.score['p2']}#{self.winner}"
+        return json.dumps(
+            {'world':self.world, 'p1':self.score['p1'], 'p2':self.score['p2'], 'winner':self.winner}
+        )
 
     def load_state(self, given_serial):
-        parts = given_serial.split('#')
-        infos_st = json.loads(parts[0])
+        dico_full = json.loads(given_serial)
+
+        infos_st = dico_full['world']
         self.taken.clear()
         for lig in range(4):
             for c in range(6):
@@ -36,9 +39,9 @@ class NetwReadyModel(ModelWithEvents):
                     self.positions[code] = (c, lig)
                     self.taken.add((c, lig))
                 self.world[c][lig] = code
-        self.score['p1'] = int(parts[1])
-        self.score['p2'] = int(parts[2])
-        self.winner = int(parts[3])
+        self.score['p1'] = dico_full['p1']
+        self.score['p2'] = dico_full['p2']
+        self.winner = dico_full['winner']
 
     # - would work if not authoritative server principle
 
@@ -47,4 +50,4 @@ class NetwReadyModel(ModelWithEvents):
     #     self.push_changes()
 
     def remote_move_pl(self, c, lig):
-        self.mediator.post('cross_move_player', f'{self.localplayer}#{c}#{lig}')
+        self.mediator.post('cross_move_player', json.dumps([self.localplayer, c, lig]))

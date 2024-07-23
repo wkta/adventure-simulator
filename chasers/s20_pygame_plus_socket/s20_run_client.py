@@ -1,10 +1,14 @@
-import pygame
 import sys
+
+import pygame
+
 import glvars
 from GameClientPlusGUI import GameClientPlusGUI
 from NetworkLayer import NetworkLayer
-from ext_mediators import ServerMediator
-from ServerComponent import ServerComponent
+
+
+# from ext_mediators import ServerMediator
+# from ServerComponent import ServerComponent
 
 
 if sys.argv[1] == 'p1':
@@ -21,8 +25,9 @@ netlayer = NetworkLayer()
 
 # init other stuff
 cc = GameClientPlusGUI(netlayer, local_pl)
-serv_mediator = ServerMediator(netlayer)  # s'auto enregistre
-remote_software = ServerComponent(serv_mediator)
+
+# serv_mediator = ServerMediator(netlayer)  # s'auto enregistre
+# remote_software = ServerComponent(serv_mediator)
 
 user_cmds = {
     pygame.K_UP: (0, -1),
@@ -36,13 +41,13 @@ user_cmds = {
 # ----------
 clients = [cc,]
 
+# sync initiale !
+
 cc._model.push_changes()  # pense a sync au démarrage
-# do the full event update
 cpt = None
 while cpt is None or cpt > 0:
     cpt = 0
     cpt += clients[0].mediator.update()
-    cpt += serv_mediator.update()
 
 
 # game loop
@@ -63,7 +68,6 @@ while not glvars.game_over:
     while cpt is None or cpt > 0:
         cpt = 0
         cpt += clients[0].mediator.update()
-        cpt += serv_mediator.update()
 
     # gfx update
     cc.on_paint(None)
