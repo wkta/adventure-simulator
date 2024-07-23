@@ -74,11 +74,12 @@ class Model:
         self.world[i][j] = sym
 
     def get_possible_mvt(self, player):
-        opponent = 'p1' if player == 'p2' else 'p2'
+        opponent = self.enemy(player)
         omega = [tuple(self.positions[player]) for _ in range(4)]
         for k_rank, offset in enumerate([(-1, 0), (1, 0), (0, -1), (0, 1)]):
             cval = self.positions[player]
             omega[k_rank] = (cval[0]+offset[0], cval[1]+offset[1])
+
         bad_loc = set()
         for elt in omega:
             if not (0 <= elt[0] < 6):
